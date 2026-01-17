@@ -167,7 +167,7 @@ body {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 0.75rem 1rem;
+  padding: 0.75rem;
   margin: 0 1rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
@@ -189,7 +189,7 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 6em;
+  width: 4.5rem;
 }
 
 .time-input {
@@ -199,16 +199,16 @@ body {
   font-family: inherit;
   font-size: 1.1rem;
   font-weight: bold;
-  padding: 4px 0;
+  padding: 4px;
   cursor: pointer;
-  width: max-content;
-  min-width: max-content;
-  margin-right: 0.5rem;
+  width: 100%;
+  min-width: 0;
   border-bottom: 1px dashed transparent;
   transition: border-bottom 0.2s;
   appearance: none;
   -webkit-appearance: none;
   line-height: 1.2;
+  text-align: center;
 }
 
 /* Hide ghost text in empty time inputs */
@@ -235,6 +235,7 @@ body {
   font-weight: bold;
   font-size: 1.1rem;
   width: 100%;
+  text-align: center;
   line-height: 1.2;
 }
 
