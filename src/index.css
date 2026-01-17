@@ -199,16 +199,16 @@ body {
   font-family: inherit;
   font-size: 1.1rem;
   font-weight: bold;
-  padding: 0.1px;
+  padding: 4px 0;
   cursor: pointer;
-  width: 3.5rem;
+  width: max-content;
+  min-width: max-content;
   margin-right: 0.5rem;
   border-bottom: 1px dashed transparent;
   transition: border-bottom 0.2s;
   appearance: none;
   -webkit-appearance: none;
   line-height: 1.2;
-  text-align: center;
 }
 
 /* Hide ghost text in empty time inputs */
@@ -234,8 +234,7 @@ body {
   opacity: 0.5;
   font-weight: bold;
   font-size: 1.1rem;
-  width: 5.2ch;
-  text-align: center;
+  width: 100%;
   line-height: 1.2;
 }
 
