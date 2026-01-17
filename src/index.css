@@ -201,8 +201,8 @@ body {
   font-weight: bold;
   padding: 0;
   cursor: pointer;
-  width: 6.0ch;
-  min-width: 6.0ch;
+  width: 5.5em;
+  min-width: 5.5em;
   margin-right: 0.5rem;
   border-bottom: 1px dashed transparent;
   transition: border-bottom 0.2s;
