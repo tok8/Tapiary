@@ -226,14 +226,15 @@ function App() {
                   >
                     <div className="card log-card">
                       <div className="time-wrapper">
+                        <div className={`time-display-text ${!log.time ? 'is-empty' : ''}`}>
+                          {log.time || '--:--'}
+                        </div>
                         <input
                           type="time"
                           value={log.time}
                           onChange={(e) => updateLog(log.id, { time: e.target.value })}
-                          onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
-                          className={`time-input ${!log.time ? 'is-empty' : ''}`}
+                          className="time-input-overlay"
                         />
-                        {!log.time && <span className="time-placeholder">--:--</span>}
                       </div>
                       <textarea
                         value={log.text}

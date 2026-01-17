@@ -192,51 +192,34 @@ body {
   width: 4.8rem;
 }
 
-.time-input {
-  border: none;
-  background: transparent;
-  color: var(--accent-color);
-  font-family: inherit;
-  font-size: 1rem;
-  font-weight: bold;
-  padding: 4px;
-  cursor: pointer;
-  width: 100%;
-  min-width: 0;
-  border-bottom: 1px dashed transparent;
-  transition: border-bottom 0.2s;
-  appearance: none;
-  -webkit-appearance: none;
-  line-height: 1.2;
-  text-align: center;
+.time-wrapper:hover .time-display-text {
+  border-bottom-color: var(--accent-color);
 }
 
-/* Hide ghost text in empty time inputs */
-.time-input.is-empty {
-  color: transparent;
-}
-
-.time-input:hover {
-  border-bottom: 1px dashed var(--accent-color);
-}
-
-.time-input::-webkit-calendar-picker-indicator {
-  display: none;
-}
-
-.time-placeholder {
-  position: absolute;
-  left: 0;
-  top: 4px;
-  /* Same offset as wrapper padding */
-  pointer-events: none;
-  color: var(--accent-color);
-  opacity: 0.5;
-  font-weight: bold;
+.time-display-text {
+  font-family: monospace;
   font-size: 1.1rem;
-  width: 100%;
-  text-align: center;
+  font-weight: bold;
+  color: var(--accent-color);
+  border-bottom: 1px dashed transparent;
+  transition: border-bottom-color 0.2s;
+  padding: 4px 0;
   line-height: 1.2;
+}
+
+.time-display-text.is-empty {
+  opacity: 0.5;
+}
+
+.time-input-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 textarea {
