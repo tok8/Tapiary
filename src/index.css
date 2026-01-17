@@ -199,10 +199,9 @@ body {
   font-family: inherit;
   font-size: 1.1rem;
   font-weight: bold;
-  padding: 1px;
+  padding: 0.1px;
   cursor: pointer;
-  width: 5rem;
-  min-width: 5rem;
+  width: 3.5rem;
   margin-right: 0.5rem;
   border-bottom: 1px dashed transparent;
   transition: border-bottom 0.2s;
