@@ -201,13 +201,15 @@ body {
   font-weight: bold;
   padding: 0;
   cursor: pointer;
-  width: 3.2rem;
+  width: 5.2ch;
+  min-width: 5.2ch;
   margin-right: 0.5rem;
   border-bottom: 1px dashed transparent;
   transition: border-bottom 0.2s;
   appearance: none;
   -webkit-appearance: none;
   line-height: 1.2;
+  text-align: center;
 }
 
 /* Hide ghost text in empty time inputs */
@@ -233,6 +235,8 @@ body {
   opacity: 0.5;
   font-weight: bold;
   font-size: 1.1rem;
+  width: 5.2ch;
+  text-align: center;
   line-height: 1.2;
 }
 
@@ -254,6 +258,12 @@ textarea {
   color: var(--fg-color);
   opacity: 0.3;
   padding: 0 4px;
+  align-self: center;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .delete-btn:hover {
@@ -318,7 +328,7 @@ textarea {
   width: 100%;
   max-width: 800px;
   background: var(--secondary-bg);
-  padding: 1rem 1.5rem;
+  padding: 1rem 1rem 1rem 1.5rem;
   display: flex;
   gap: 0.6rem;
   overflow-x: auto;
@@ -328,6 +338,27 @@ textarea {
   z-index: 20;
   scrollbar-width: none;
   /* Hide scrollbar for cleaner look */
+  padding-right: 4rem;
+  /* Space for the edit button */
+}
+
+.edit-shortcuts-btn {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--card-bg);
+  color: var(--accent-color);
+  border: 1px solid var(--border-color);
+  padding: 0.5rem;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: -4px 0 12px var(--secondary-bg);
+  z-index: 30;
 }
 
 .shortcut-bar::-webkit-scrollbar {
@@ -404,7 +435,8 @@ button {
   width: 100%;
   max-width: 400px;
   border-radius: 20px;
-  padding: 2rem;
+  padding: 1.5rem;
+  overflow-x: hidden;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
   border: 1px solid var(--border-color);
 }
@@ -450,6 +482,7 @@ button {
   font-family: inherit;
   font-size: 1rem;
   outline: none;
+  min-width: 0;
 }
 
 .insert-btn {
