@@ -43,6 +43,10 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState(() => getTodayStr())
   const datePickerRef = useRef<HTMLInputElement>(null)
+  const [isNewLogModalOpen, setIsNewLogModalOpen] = useState(false)
+  const [newLogTime, setNewLogTime] = useState('')
+  const [newLogText, setNewLogText] = useState('')
+  const newLogTextRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     localStorage.setItem('tapiary-data', JSON.stringify(logs))
@@ -56,6 +60,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem('tapiary-shortcuts', JSON.stringify(shortcuts))
   }, [shortcuts])
+
+  const scrollToBottom = () => {
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const sortLogs = (list: LogEntry[]) => {
     return [...list].sort((a, b) => {
@@ -120,7 +132,10 @@ function App() {
   }
 
   const deleteLog = (id: string) => {
-    if (confirm('ログを削除しますか？')) {
+    const log = logs.find(l => l.id === id);
+    const timeDisplay = log?.time || '--:--';
+    const textPreview = log?.text ? (log.text.length > 20 ? log.text.slice(0, 20) + '...' : log.text) : '(空)';
+    if (confirm(`以下のログを削除しますか？\n${timeDisplay} ${textPreview}`)) {
       const nextLogs = logs.filter(log => log.id !== id);
       setLogs(normalizeOrders(nextLogs));
     }
@@ -131,7 +146,7 @@ function App() {
   }
 
   const exportAsText = () => {
-    const header = `【${formatDisplayDate(selectedDate)}】\n`
+    const header = `${formatDisplayDate(selectedDate)}\n`
     const body = filteredLogs.map(log => `${log.time || '--:--'} ${log.text}`).join('\n')
     const text = header + body
     navigator.clipboard.writeText(text)
@@ -147,6 +162,19 @@ function App() {
   }
   const deleteShortcut = (id: string) => {
     setShortcuts(shortcuts.filter(s => s.id !== id))
+  }
+
+  const openNewLogModal = () => {
+    const now = new Date();
+    setNewLogTime(now.toTimeString().slice(0, 5));
+    setNewLogText('');
+    setIsNewLogModalOpen(true);
+    setTimeout(() => newLogTextRef.current?.focus(), 100);
+  }
+
+  const submitNewLog = () => {
+    addLog(newLogText, selectedDate, newLogTime);
+    setIsNewLogModalOpen(false);
   }
 
   // Date navigation
@@ -233,6 +261,12 @@ function App() {
                           type="time"
                           value={log.time}
                           onChange={(e) => updateLog(log.id, { time: e.target.value })}
+                          onClick={(e) => {
+                            const input = e.target as HTMLInputElement;
+                            if (input.showPicker) {
+                              input.showPicker();
+                            }
+                          }}
                           className="time-input-overlay"
                         />
                       </div>
@@ -266,15 +300,47 @@ function App() {
       </main>
 
       <footer className="shortcut-bar">
-        {shortcuts.map(s => (
-          <button key={s.id} onClick={() => addLog(s.label)}>{s.label}</button>
-        ))}
+        <div className="shortcut-scroll-area">
+          {shortcuts.map(s => (
+            <button key={s.id} onClick={() => addLog(s.label)}>{s.label}</button>
+          ))}
+        </div>
         <button className="edit-shortcuts-btn" onClick={() => setIsSettingsOpen(true)} title="Edit buttons">
           <EditIcon />
         </button>
       </footer>
 
-      <button className="add-main-btn" onClick={() => addLog()}>+</button>
+      <button className="scroll-top-btn" onClick={scrollToTop} title="一番上へ">▲</button>
+      <button className="scroll-bottom-btn" onClick={scrollToBottom} title="一番下へ">▼</button>
+      <button className="add-main-btn" onClick={openNewLogModal}>+</button>
+
+      {isNewLogModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsNewLogModalOpen(false)}>
+          <div className="modal new-log-modal" onClick={e => e.stopPropagation()}>
+            <h2>新しいログ</h2>
+            <div className="new-log-time-display">
+              <input
+                type="time"
+                value={newLogTime}
+                onChange={(e) => setNewLogTime(e.target.value)}
+                className="new-log-time-input"
+              />
+            </div>
+            <textarea
+              ref={newLogTextRef}
+              value={newLogText}
+              onChange={(e) => setNewLogText(e.target.value)}
+              placeholder="メモを入力..."
+              className="new-log-text-input"
+              rows={3}
+            />
+            <div className="new-log-actions">
+              <button className="cancel-btn" onClick={() => setIsNewLogModalOpen(false)}>キャンセル</button>
+              <button className="submit-btn" onClick={submitNewLog}>追加</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isSettingsOpen && (
         <div className="modal-overlay" onClick={() => setIsSettingsOpen(false)}>

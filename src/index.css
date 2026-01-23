@@ -314,22 +314,30 @@ textarea {
   padding: 1rem 1rem 1rem 1.5rem;
   display: flex;
   gap: 0.6rem;
-  overflow-x: auto;
   justify-content: flex-start;
-  /* Better for scrolling */
   border-top: 1px solid var(--border-color);
-  z-index: 20;
+  z-index: 100;
+  min-height: 64px;
+  /* Fixed height even with 0 buttons */
+  align-items: center;
+}
+
+.shortcut-scroll-area {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  flex: 1;
+  padding-right: 3rem;
+  /* Space for the fixed edit button */
   scrollbar-width: none;
-  /* Hide scrollbar for cleaner look */
-  padding-right: 4rem;
-  /* Space for the edit button */
+}
+
+.shortcut-scroll-area::-webkit-scrollbar {
+  display: none;
 }
 
 .edit-shortcuts-btn {
-  position: absolute;
-  right: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
+  flex-shrink: 0;
   background: var(--card-bg);
   color: var(--accent-color);
   border: 1px solid var(--border-color);
@@ -342,10 +350,6 @@ textarea {
   justify-content: center;
   box-shadow: -4px 0 12px var(--secondary-bg);
   z-index: 30;
-}
-
-.shortcut-bar::-webkit-scrollbar {
-  display: none;
 }
 
 button {
@@ -387,6 +391,66 @@ button {
 .add-main-btn:active {
   transform: scale(0.9) translateY(2px);
   background-color: #a35a5a;
+}
+
+.scroll-bottom-btn {
+  position: fixed;
+  bottom: 150px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  border-radius: 22px !important;
+  font-size: 1.4rem;
+  background-color: var(--secondary-bg);
+  color: var(--fg-color);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+@media (min-width: 801px) {
+  .scroll-bottom-btn {
+    right: calc(50% - 400px + 20px);
+  }
+}
+
+.scroll-bottom-btn:active {
+  transform: scale(0.9);
+  background-color: var(--border-color);
+}
+
+.scroll-top-btn {
+  position: fixed;
+  bottom: 200px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  border-radius: 22px !important;
+  font-size: 1.2rem;
+  background-color: var(--secondary-bg);
+  color: var(--fg-color);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+@media (min-width: 801px) {
+  .scroll-top-btn {
+    right: calc(50% - 400px + 20px);
+  }
+}
+
+.scroll-top-btn:active {
+  transform: scale(0.9);
+  background-color: var(--border-color);
 }
 
 .icon-btn {
@@ -498,4 +562,78 @@ button {
 .close-modal-btn:active {
   transform: scale(0.98);
   opacity: 0.9;
+}
+
+/* New Log Modal */
+.new-log-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.new-log-time-display {
+  display: flex;
+  justify-content: center;
+}
+
+.new-log-time-input {
+  font-family: inherit;
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: var(--accent-color);
+  background: transparent;
+  border: none;
+  border-bottom: 2px dashed var(--border-color);
+  padding: 0.5rem;
+  text-align: center;
+  width: auto;
+  outline: none;
+}
+
+.new-log-time-input:focus {
+  border-bottom-color: var(--accent-color);
+}
+
+.new-log-text-input {
+  width: 100%;
+  min-height: 80px;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--secondary-bg);
+  color: var(--fg-color);
+  font-family: inherit;
+  font-size: 1rem;
+  resize: vertical;
+  outline: none;
+}
+
+.new-log-text-input:focus {
+  border-color: var(--accent-color);
+}
+
+.new-log-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.new-log-actions .cancel-btn {
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: var(--secondary-bg);
+  color: var(--fg-color);
+  border: 1px solid var(--border-color);
+  font-weight: bold;
+}
+
+.new-log-actions .submit-btn {
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: var(--accent-color);
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 4px 12px rgba(139, 148, 103, 0.2);
 }
