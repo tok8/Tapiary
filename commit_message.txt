@@ -1,10 +1,7 @@
-Feat: Phase 2 Sorting & Data Integrity
+続きを読む機能の不具合修正とフッターレイアウトの復元
 
-Implemented robust sorting and data precision improvements:
-
-- **Sorting**: Implemented "Anchor & Dependent" sorting logic. Logs without time now explicitly link to the log above them (`parentId`) and move with it during sorts.
-- **Data Precision**: Added `createdAt` timestamp to `LogEntry` to ensure stable sorting for logs added within the same minute.
-- **Migration**: Added auto-migration to upgrade existing logs with `createdAt` and `parentId` on load.
-- **UI/UX**: 
-  - Forced time display and input to use `HH:mm` format to simplify editing.
-  - Retained full precision in background for sorting stability.
+- 長いテキストが折り返された場合に「続きを読む」ボタンが表示されない問題を修正 (scrollHeight判定に変更)
+- 「続きを読む」ボタンを押してもテキストが展開されない問題を修正 (CSSのflex制約を削除)
+- 展開時のチラつき防止のため useEffect を useLayoutEffect に変更
+- LogItemコンポーネントを分離しリファクタリング
+- フッターのショートカットバーのレイアウト崩れを修正

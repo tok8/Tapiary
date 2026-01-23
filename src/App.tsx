@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import './index.css'
-import type { LogEntry, Shortcut } from './types'
+import type { LogEntry, Shortcut, ExportSettings } from './types'
 
 const SunIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
@@ -24,6 +24,133 @@ const getTodayStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+// LogItem Component
+const LogItem = ({
+  log,
+  selectedDate,
+  updateLog,
+  deleteLog,
+  addLog,
+  isExpanded,
+  setExpanded
+}: {
+  log: LogEntry,
+  selectedDate: string,
+  updateLog: (id: string, u: Partial<LogEntry>) => void,
+  deleteLog: (id: string) => void,
+  addLog: (text?: string, date?: string, time?: string, after?: string, noTime?: boolean) => void,
+  isExpanded: boolean,
+  setExpanded: (id: string) => void
+}) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [showReadMore, setShowReadMore] = useState(false)
+
+  // Check for overflow on mount and when text changes/wraps
+  useLayoutEffect(() => {
+    const checkOverflow = () => {
+      const el = textareaRef.current
+      if (el) {
+        // We need to reset height to auto to get correct scrollHeight if it was previously set
+        if (!isExpanded) {
+          // If collapsed, we want to know if it WOULD overflow if we enforced max-height
+          // But CSS enforces max-height.
+          // So if scrollHeight > clientHeight, it's overflowing.
+          // NOTE: clientHeight includes padding. scrollHeight includes padding + content.
+          // If they are equal, no overflow. 
+          // We might need a small tolerance (1px).
+          setShowReadMore(el.scrollHeight > el.clientHeight + 1)
+        } else {
+          // If expanded, button is hidden by logic usually.
+          setShowReadMore(false)
+        }
+      }
+    }
+
+    checkOverflow()
+    window.addEventListener('resize', checkOverflow)
+    return () => window.removeEventListener('resize', checkOverflow)
+  }, [log.text, isExpanded])
+
+  // Auto-resize height when expanded
+  useLayoutEffect(() => {
+    if (isExpanded && textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px'
+    }
+  }, [log.text, isExpanded])
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <div className="card log-card">
+        <div className="time-wrapper">
+          <div className={`time-display-text ${!log.time ? 'is-empty' : ''}`}>
+            {log.time?.slice(0, 5) || '--:--'}
+          </div>
+          <input
+            type="time"
+            value={log.time?.slice(0, 5)}
+            onChange={(e) => updateLog(log.id, { time: e.target.value })}
+            onClick={(e) => {
+              const input = e.target as HTMLInputElement;
+              if (input.showPicker) {
+                input.showPicker();
+              }
+            }}
+            className="time-input-overlay"
+          />
+        </div>
+        <div className="text-content-wrapper" style={{ width: '100%' }}>
+          <textarea
+            ref={textareaRef}
+            value={log.text}
+            onChange={(e) => {
+              updateLog(log.id, { text: e.target.value })
+              // Resize immediately if expanded
+              if (isExpanded) {
+                e.target.style.height = 'auto'
+                e.target.style.height = e.target.scrollHeight + 'px'
+              }
+            }}
+            placeholder="メモを入力..."
+            rows={1}
+            className={!isExpanded ? 'truncated-textarea' : ''}
+            onFocus={() => {
+              if (showReadMore && !isExpanded) {
+                setExpanded(log.id)
+              }
+            }}
+          />
+          {!isExpanded && showReadMore && (
+            <button
+              className="read-more-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                setExpanded(log.id)
+              }}
+            >
+              続きを読む...
+            </button>
+          )}
+        </div>
+        <button className="delete-btn" onClick={() => deleteLog(log.id)}>×</button>
+      </div>
+      <div className="insert-between">
+        <button
+          className="insert-circle"
+          onClick={() => addLog('', selectedDate, '', log.id, true)}
+        >
+          +
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
 function App() {
   const [logs, setLogs] = useState<LogEntry[]>(() => {
     const saved = localStorage.getItem('tapiary-data')
@@ -40,13 +167,27 @@ function App() {
       { id: '2', label: '就寝' }
     ]
   })
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [exportSettings, setExportSettings] = useState<ExportSettings>(() => {
+    const saved = localStorage.getItem('tapiary-export-settings')
+    return saved ? JSON.parse(saved) : {
+      includeHeaderDate: true,
+      includeLogDate: false,
+      includeSeconds: false,
+      delimiter: 'space',
+      quoteText: false,
+      newlineHandling: 'keep'
+    }
+  })
+
+  const [isAppSettingsOpen, setIsAppSettingsOpen] = useState(false)
+  const [isShortcutSettingsOpen, setIsShortcutSettingsOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState(() => getTodayStr())
   const datePickerRef = useRef<HTMLInputElement>(null)
   const [isNewLogModalOpen, setIsNewLogModalOpen] = useState(false)
   const [newLogTime, setNewLogTime] = useState('')
   const [newLogText, setNewLogText] = useState('')
   const newLogTextRef = useRef<HTMLTextAreaElement>(null)
+  const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     localStorage.setItem('tapiary-data', JSON.stringify(logs))
@@ -60,6 +201,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('tapiary-shortcuts', JSON.stringify(shortcuts))
   }, [shortcuts])
+
+  useEffect(() => {
+    localStorage.setItem('tapiary-export-settings', JSON.stringify(exportSettings))
+  }, [exportSettings])
 
   // Migration: Ensure all logs have createdAt and correct parentId structure
   useEffect(() => {
@@ -140,13 +285,6 @@ function App() {
       }
     });
 
-    // Append any orphans (children whose parents don't exist in anchors)
-    // This handles cases where a parent was deleted but children weren't re-parented yet (though deleteLog should handle it)
-    // For safety, we can put them at the end or top. Let's put them at the end for visibility.
-    // Actually, deleteLog handles reparenting. But if sort is called before delete logic finishes?
-    // Simply iterating childrenMap keys that weren't visited?
-    // For simplicity, we assume correct parenting.
-
     return result;
   };
 
@@ -179,11 +317,6 @@ function App() {
         }
       } else {
         // Append at end. Find last anchor.
-        // This case (calling addLog() without args) usually implies adding to "current time" (Log with time), 
-        // OR if noTime=true is passed without pos, it implies append.
-        // If append with noTime, we should link to the very last anchor in the list?
-        // Actually, if we just append, it might have no parent (root) or last anchor.
-        // For safety, let's look at the last log of the day.
         const todayLogs = logs.filter(l => l.date === targetDate);
         const lastLog = todayLogs[todayLogs.length - 1];
         if (lastLog) {
@@ -202,17 +335,7 @@ function App() {
       parentId: parentId
     }
 
-    // Insert logic is handled by sort now, we just need to append to list and letting sortLogs handle the order?
-    // NO, sortLogs re-orders based on properties. So we just push the new entry to the list.
-    // EXCEPTION: if we want to insert immediately without full sort? 
-    // Actually, since we use `sortedLogs` memoized, we just need to add it to `logs` state.
-    // But `logs` state is raw. `sortedLogs` is derived.
-    // So we can just append to `logs`?
-    // Wait, `logs` is persistent storage. Should we keep it roughly sorted? 
-    // It doesn't strictly matter for `sortedLogs` derivation, but helps debugging.
     setLogs(prev => [...prev, newEntry]);
-    // We don't need manual splicing anymore because sortLogs does the heavy lifting!
-    // This simplifies addLog significantly.
   }
 
   const updateLog = (id: string, updates: Partial<LogEntry>) => {
@@ -233,26 +356,14 @@ function App() {
     const textPreview = logToDelete.text ? (logToDelete.text.length > 20 ? logToDelete.text.slice(0, 20) + '...' : logToDelete.text) : '(空)';
 
     if (confirm(`以下のログを削除しますか？\n${timeDisplay} ${textPreview}`)) {
-      // Re-parenting logic
-      // If the deleted log was an anchor (had time), its children need a new home.
-      // We can attach them to the anchor *above* the deleted log.
-
       const isAnchor = !!logToDelete.time;
       let newParentId: string | undefined = undefined;
 
       if (isAnchor) {
-        // Find the anchor that was strictly above this one (by time/created)
-        // Since finding exact predecessor in raw list is hard, we rely on sortedLogs
-        // But sortedLogs contains only today. GLOBAL searching is safer.
-        // For simplicity: Orphan them (parentId = undefined) -> they go to top of day?
-        // OR: User wants "maintain visual insertion position".
-        // Ideally they merge into the block above.
-        // Getting the sorted list to find predecessor:
         const sorted = sortLogs(logs);
         const idx = sorted.findIndex(l => l.id === id);
         if (idx > 0) {
           const prev = sorted[idx - 1];
-          // If prev is anchor, use its ID. If prev is child, use its parentId.
           newParentId = prev.time ? prev.id : prev.parentId;
         }
       }
@@ -271,10 +382,60 @@ function App() {
   }
 
   const exportAsText = () => {
-    const header = `${formatDisplayDate(selectedDate)}\n`
-    const body = filteredLogs.map(log => `${log.time || '--:--'} ${log.text}`).join('\n')
-    const text = header + body
-    navigator.clipboard.writeText(text)
+    const lines: string[] = []
+
+    if (exportSettings.includeHeaderDate) {
+      lines.push(`${formatDisplayDate(selectedDate)}`)
+    }
+
+    filteredLogs.forEach(log => {
+      const parts: string[] = []
+
+      // Time Part
+      if (exportSettings.includeLogDate) {
+        // Full YYYY-MM-DD HH:mm(:ss)
+        let t = log.date + ' ' + (log.time || '--:--')
+        if (exportSettings.includeSeconds && log.time) {
+          if (!exportSettings.includeSeconds) {
+            t = log.date + ' ' + (log.time?.slice(0, 5) || '--:--')
+          }
+        } else if (!exportSettings.includeSeconds) {
+          t = log.date + ' ' + (log.time?.slice(0, 5) || '--:--')
+        }
+        parts.push(t)
+      } else {
+        // Just Time
+        let t = log.time || '--:--'
+        if (!exportSettings.includeSeconds) {
+          t = t.slice(0, 5)
+        }
+        parts.push(t)
+      }
+
+      // Text Part
+      let text = log.text
+      if (exportSettings.newlineHandling === 'space') {
+        text = text.replace(/\n/g, ' ')
+      } else if (exportSettings.newlineHandling === 'escape') {
+        text = text.replace(/\n/g, '\\n')
+      }
+
+      if (exportSettings.quoteText) {
+        text = `"${text.replace(/"/g, '""')}"`
+      }
+
+      parts.push(text)
+
+      const delims = {
+        space: ' ',
+        tab: '\t',
+        comma: ','
+      }
+      lines.push(parts.join(delims[exportSettings.delimiter]))
+    })
+
+    const result = lines.join('\n')
+    navigator.clipboard.writeText(result)
     alert(`${selectedDate} のログをコピーしました！`)
   }
 
@@ -326,7 +487,7 @@ function App() {
           <button onClick={exportAsText} className="icon-btn" title="Export current day">
             <ExportIcon />
           </button>
-          <button onClick={() => setIsSettingsOpen(true)} className="icon-btn" title="Settings">
+          <button onClick={() => setIsAppSettingsOpen(true)} className="icon-btn" title="Settings">
             <SettingsIcon />
           </button>
         </div>
@@ -370,54 +531,16 @@ function App() {
                   </button>
                 </div>
                 {filteredLogs.map((log) => (
-                  <motion.div
+                  <LogItem
                     key={log.id}
-                    layout
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                  >
-                    <div className="card log-card">
-                      <div className="time-wrapper">
-                        <div className={`time-display-text ${!log.time ? 'is-empty' : ''}`}>
-                          {log.time?.slice(0, 5) || '--:--'}
-                        </div>
-                        <input
-                          type="time"
-                          value={log.time?.slice(0, 5)}
-                          onChange={(e) => updateLog(log.id, { time: e.target.value })}
-                          onClick={(e) => {
-                            const input = e.target as HTMLInputElement;
-                            if (input.showPicker) {
-                              input.showPicker();
-                            }
-                          }}
-
-                          className="time-input-overlay"
-                        />
-                      </div>
-                      <textarea
-                        value={log.text}
-                        onChange={(e) => updateLog(log.id, { text: e.target.value })}
-                        placeholder="メモを入力..."
-                        rows={1}
-                        onInput={(e) => {
-                          const target = e.target as HTMLTextAreaElement;
-                          target.style.height = 'auto';
-                          target.style.height = target.scrollHeight + 'px';
-                        }}
-                      />
-                      <button className="delete-btn" onClick={() => deleteLog(log.id)}>×</button>
-                    </div>
-                    <div className="insert-between">
-                      <button
-                        className="insert-circle"
-                        onClick={() => addLog('', selectedDate, '', log.id, true)}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </motion.div>
+                    log={log}
+                    selectedDate={selectedDate}
+                    updateLog={updateLog}
+                    deleteLog={deleteLog}
+                    addLog={addLog}
+                    isExpanded={expandedLogs.has(log.id)}
+                    setExpanded={(id) => setExpandedLogs(prev => new Set(prev).add(id))}
+                  />
                 ))}
               </>
             )}
@@ -431,7 +554,7 @@ function App() {
             <button key={s.id} onClick={() => addLog(s.label)}>{s.label}</button>
           ))}
         </div>
-        <button className="edit-shortcuts-btn" onClick={() => setIsSettingsOpen(true)} title="Edit buttons">
+        <button className="edit-shortcuts-btn" onClick={() => setIsShortcutSettingsOpen(true)} title="Edit buttons">
           <EditIcon />
         </button>
       </footer>
@@ -446,10 +569,17 @@ function App() {
             <h2>新しいログ</h2>
             <div className="new-log-time-display">
               <input
-                type="time"
-                value={newLogTime}
-                onChange={(e) => setNewLogTime(e.target.value)}
                 className="new-log-time-input"
+                type="text"
+                value={newLogTime}
+                onChange={(e) => {
+                  let v = e.target.value.replace(/[^0-9:]/g, '');
+                  if (v.length === 2 && !v.includes(':') && newLogTime.length === 1) v += ':';
+                  if (v.length > 5) v = v.slice(0, 5);
+                  setNewLogTime(v);
+                }}
+                placeholder="--:--"
+                maxLength={5}
               />
             </div>
             <textarea
@@ -468,23 +598,104 @@ function App() {
         </div>
       )}
 
-      {isSettingsOpen && (
-        <div className="modal-overlay" onClick={() => setIsSettingsOpen(false)}>
+      {isShortcutSettingsOpen && (
+        <div className="modal-overlay" onClick={() => setIsShortcutSettingsOpen(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h2>ボタン設定</h2>
             <div className="shortcut-edit-list">
-              {shortcuts.map(s => (
-                <div key={s.id} className="shortcut-item-edit">
-                  <input
-                    value={s.label}
-                    onChange={e => updateShortcut(s.id, e.target.value)}
-                  />
-                  <button className="delete-btn" onClick={() => deleteShortcut(s.id)}>×</button>
-                </div>
-              ))}
+              <Reorder.Group axis="y" values={shortcuts} onReorder={setShortcuts} style={{ listStyle: 'none', padding: 0 }}>
+                {shortcuts.map(s => (
+                  <Reorder.Item key={s.id} value={s} style={{ marginBottom: '0.5rem' }}>
+                    <div className="shortcut-item-edit">
+                      <span className="drag-handle">☰</span>
+                      <input
+                        value={s.label}
+                        onChange={e => updateShortcut(s.id, e.target.value)}
+                      />
+                      <button className="delete-btn" onClick={() => deleteShortcut(s.id)}>×</button>
+                    </div>
+                  </Reorder.Item>
+                ))}
+              </Reorder.Group>
               <button className="insert-btn" onClick={addShortcut}>+ ボタンを追加</button>
             </div>
-            <button className="close-modal-btn" onClick={() => setIsSettingsOpen(false)}>閉じる</button>
+            <button className="close-modal-btn" onClick={() => setIsShortcutSettingsOpen(false)}>閉じる</button>
+          </div>
+        </div>
+      )}
+
+      {isAppSettingsOpen && (
+        <div className="modal-overlay" onClick={() => setIsAppSettingsOpen(false)}>
+          <div className="modal settings-modal" onClick={e => e.stopPropagation()}>
+            <h2>アプリ設定</h2>
+
+            <div className="settings-section">
+              <h3>エクスポート設定</h3>
+              <div className="setting-item">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={exportSettings.includeHeaderDate}
+                    onChange={e => setExportSettings({ ...exportSettings, includeHeaderDate: e.target.checked })}
+                  />
+                  ヘッダーに日付を含める ({formatDisplayDate(selectedDate)})
+                </label>
+              </div>
+              <div className="setting-item">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={exportSettings.includeLogDate}
+                    onChange={e => setExportSettings({ ...exportSettings, includeLogDate: e.target.checked })}
+                  />
+                  ログ各行に日付を含める
+                </label>
+              </div>
+              <div className="setting-item">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={exportSettings.includeSeconds}
+                    onChange={e => setExportSettings({ ...exportSettings, includeSeconds: e.target.checked })}
+                  />
+                  秒数を含める
+                </label>
+              </div>
+              <div className="setting-item">
+                <label>区切り文字:</label>
+                <select
+                  value={exportSettings.delimiter}
+                  onChange={e => setExportSettings({ ...exportSettings, delimiter: e.target.value as any })}
+                >
+                  <option value="space">スペース</option>
+                  <option value="tab">タブ (Tab)</option>
+                  <option value="comma">カンマ (CSV)</option>
+                </select>
+              </div>
+              <div className="setting-item">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={exportSettings.quoteText}
+                    onChange={e => setExportSettings({ ...exportSettings, quoteText: e.target.checked })}
+                  />
+                  テキストを " " で囲む
+                </label>
+              </div>
+              <div className="setting-item">
+                <label>改行の扱い:</label>
+                <select
+                  value={exportSettings.newlineHandling}
+                  onChange={e => setExportSettings({ ...exportSettings, newlineHandling: e.target.value as any })}
+                >
+                  <option value="keep">そのまま (Keep)</option>
+                  <option value="space">スペースに置換</option>
+                  <option value="escape">¥n (リテラル)に置換</option>
+                </select>
+              </div>
+            </div>
+
+            <button className="close-modal-btn" onClick={() => setIsAppSettingsOpen(false)}>閉じる</button>
           </div>
         </div>
       )}

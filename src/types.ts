@@ -16,3 +16,12 @@ export interface Shortcut {
 export interface AppTheme {
     mode: 'light' | 'dark';
 }
+
+export interface ExportSettings {
+    includeHeaderDate: boolean;
+    includeLogDate: boolean;
+    includeSeconds: boolean;
+    delimiter: 'space' | 'tab' | 'comma';
+    quoteText: boolean;
+    newlineHandling: 'keep' | 'space' | 'escape';
+}
