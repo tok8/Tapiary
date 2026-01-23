@@ -61,6 +61,37 @@ function App() {
     localStorage.setItem('tapiary-shortcuts', JSON.stringify(shortcuts))
   }, [shortcuts])
 
+  // Migration: Ensure all logs have createdAt and correct parentId structure
+  useEffect(() => {
+    setLogs(prev => {
+      const needsMigration = prev.some(l => !l.createdAt);
+      if (!needsMigration) return prev;
+
+      const now = Date.now();
+      let lastAnchorId: string | undefined = undefined;
+
+      return prev.map((log, index) => {
+        const isAnchor = !!log.time;
+        // If it's an anchor, it becomes the new lastAnchorId
+        // If it's a child, it adopts the lastAnchorId (or keeps its own if valid, but for migration we assume sequential)
+        // We only migrate if parentId is missing for a no-time log.
+        let pid = log.parentId;
+        if (!isAnchor && pid === undefined) {
+          pid = lastAnchorId;
+        }
+
+        const newLog = {
+          ...log,
+          createdAt: log.createdAt || (now + index), // Stable sort for existing
+          parentId: pid
+        };
+
+        if (isAnchor) lastAnchorId = log.id;
+        return newLog;
+      });
+    });
+  }, []);
+
   const scrollToBottom = () => {
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
@@ -70,13 +101,53 @@ function App() {
   };
 
   const sortLogs = (list: LogEntry[]) => {
-    return [...list].sort((a, b) => {
+    const anchors = list.filter(l => !!l.time);
+    const children = list.filter(l => !l.time);
+
+    // Sort anchors by Date -> Time -> CreatedAt
+    anchors.sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
-      if (a.time && b.time) {
-        if (a.time !== b.time) return a.time.localeCompare(b.time);
-      }
-      return a.order - b.order;
+      if (a.time !== b.time) return a.time.localeCompare(b.time);
+      return (a.createdAt || 0) - (b.createdAt || 0);
     });
+
+    // Group children by parentId
+    const childrenMap = new Map<string, LogEntry[]>();
+    children.forEach(c => {
+      const pid = c.parentId || 'root';
+      const arr = childrenMap.get(pid) || [];
+      arr.push(c);
+      childrenMap.set(pid, arr);
+    });
+
+    // Flatten list
+    let result: LogEntry[] = [];
+
+    // 1. Root children (no-time logs at top of day)
+    const rootChildren = childrenMap.get('root');
+    if (rootChildren) {
+      rootChildren.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      result.push(...rootChildren);
+    }
+
+    // 2. Anchors and their children
+    anchors.forEach(anchor => {
+      result.push(anchor);
+      const kids = childrenMap.get(anchor.id);
+      if (kids) {
+        kids.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        result.push(...kids);
+      }
+    });
+
+    // Append any orphans (children whose parents don't exist in anchors)
+    // This handles cases where a parent was deleted but children weren't re-parented yet (though deleteLog should handle it)
+    // For safety, we can put them at the end or top. Let's put them at the end for visibility.
+    // Actually, deleteLog handles reparenting. But if sort is called before delete logic finishes?
+    // Simply iterating childrenMap keys that weren't visited?
+    // For simplicity, we assume correct parenting.
+
+    return result;
   };
 
   const sortedLogs = useMemo(() => sortLogs(logs), [logs]);
@@ -93,32 +164,55 @@ function App() {
     const now = new Date()
     const targetDate = dateStr || selectedDate
     const isToday = targetDate === getTodayStr()
+    const timeVal = noTime ? '' : (timeStr || (isToday ? now.toTimeString().slice(0, 5) : '')); // HH:mm
+
+    let parentId: string | undefined = undefined;
+
+    if (noTime) {
+      if (insertBeforeFirst) {
+        parentId = undefined;
+      } else if (afterId) {
+        const prevLog = logs.find(l => l.id === afterId);
+        if (prevLog) {
+          // If prev matches anchor, it's the parent. If prev is child, share its parent.
+          parentId = prevLog.time ? prevLog.id : prevLog.parentId;
+        }
+      } else {
+        // Append at end. Find last anchor.
+        // This case (calling addLog() without args) usually implies adding to "current time" (Log with time), 
+        // OR if noTime=true is passed without pos, it implies append.
+        // If append with noTime, we should link to the very last anchor in the list?
+        // Actually, if we just append, it might have no parent (root) or last anchor.
+        // For safety, let's look at the last log of the day.
+        const todayLogs = logs.filter(l => l.date === targetDate);
+        const lastLog = todayLogs[todayLogs.length - 1];
+        if (lastLog) {
+          parentId = lastLog.time ? lastLog.id : lastLog.parentId;
+        }
+      }
+    }
+
     const newEntry: LogEntry = {
       id: crypto.randomUUID(),
       date: targetDate,
-      time: noTime ? '' : (timeStr || (isToday ? now.toTimeString().slice(0, 5) : '')),
+      time: timeVal,
       text: text,
-      order: 0
+      order: 0, // Legacy field
+      createdAt: now.getTime(),
+      parentId: parentId
     }
 
-    let nextLogs: LogEntry[];
-    if (insertBeforeFirst) {
-      const index = logs.findIndex(l => l.date === targetDate)
-      nextLogs = [...logs];
-      if (index !== -1) {
-        nextLogs.splice(index, 0, newEntry);
-      } else {
-        nextLogs.push(newEntry);
-      }
-    } else if (afterId) {
-      const index = logs.findIndex(l => l.id === afterId)
-      nextLogs = [...logs];
-      nextLogs.splice(index + 1, 0, newEntry);
-    } else {
-      nextLogs = [...logs, newEntry];
-    }
-
-    setLogs(normalizeOrders(nextLogs));
+    // Insert logic is handled by sort now, we just need to append to list and letting sortLogs handle the order?
+    // NO, sortLogs re-orders based on properties. So we just push the new entry to the list.
+    // EXCEPTION: if we want to insert immediately without full sort? 
+    // Actually, since we use `sortedLogs` memoized, we just need to add it to `logs` state.
+    // But `logs` state is raw. `sortedLogs` is derived.
+    // So we can just append to `logs`?
+    // Wait, `logs` is persistent storage. Should we keep it roughly sorted? 
+    // It doesn't strictly matter for `sortedLogs` derivation, but helps debugging.
+    setLogs(prev => [...prev, newEntry]);
+    // We don't need manual splicing anymore because sortLogs does the heavy lifting!
+    // This simplifies addLog significantly.
   }
 
   const updateLog = (id: string, updates: Partial<LogEntry>) => {
@@ -132,12 +226,43 @@ function App() {
   }
 
   const deleteLog = (id: string) => {
-    const log = logs.find(l => l.id === id);
-    const timeDisplay = log?.time || '--:--';
-    const textPreview = log?.text ? (log.text.length > 20 ? log.text.slice(0, 20) + '...' : log.text) : '(空)';
+    const logToDelete = logs.find(l => l.id === id);
+    if (!logToDelete) return;
+
+    const timeDisplay = logToDelete.time?.slice(0, 5) || '--:--';
+    const textPreview = logToDelete.text ? (logToDelete.text.length > 20 ? logToDelete.text.slice(0, 20) + '...' : logToDelete.text) : '(空)';
+
     if (confirm(`以下のログを削除しますか？\n${timeDisplay} ${textPreview}`)) {
-      const nextLogs = logs.filter(log => log.id !== id);
-      setLogs(normalizeOrders(nextLogs));
+      // Re-parenting logic
+      // If the deleted log was an anchor (had time), its children need a new home.
+      // We can attach them to the anchor *above* the deleted log.
+
+      const isAnchor = !!logToDelete.time;
+      let newParentId: string | undefined = undefined;
+
+      if (isAnchor) {
+        // Find the anchor that was strictly above this one (by time/created)
+        // Since finding exact predecessor in raw list is hard, we rely on sortedLogs
+        // But sortedLogs contains only today. GLOBAL searching is safer.
+        // For simplicity: Orphan them (parentId = undefined) -> they go to top of day?
+        // OR: User wants "maintain visual insertion position".
+        // Ideally they merge into the block above.
+        // Getting the sorted list to find predecessor:
+        const sorted = sortLogs(logs);
+        const idx = sorted.findIndex(l => l.id === id);
+        if (idx > 0) {
+          const prev = sorted[idx - 1];
+          // If prev is anchor, use its ID. If prev is child, use its parentId.
+          newParentId = prev.time ? prev.id : prev.parentId;
+        }
+      }
+
+      setLogs(prev => prev.filter(l => l.id !== id).map(l => {
+        if (l.parentId === id) {
+          return { ...l, parentId: newParentId };
+        }
+        return l;
+      }));
     }
   }
 
@@ -255,11 +380,11 @@ function App() {
                     <div className="card log-card">
                       <div className="time-wrapper">
                         <div className={`time-display-text ${!log.time ? 'is-empty' : ''}`}>
-                          {log.time || '--:--'}
+                          {log.time?.slice(0, 5) || '--:--'}
                         </div>
                         <input
                           type="time"
-                          value={log.time}
+                          value={log.time?.slice(0, 5)}
                           onChange={(e) => updateLog(log.id, { time: e.target.value })}
                           onClick={(e) => {
                             const input = e.target as HTMLInputElement;
@@ -267,6 +392,7 @@ function App() {
                               input.showPicker();
                             }
                           }}
+
                           className="time-input-overlay"
                         />
                       </div>

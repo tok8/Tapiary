@@ -4,6 +4,8 @@ export interface LogEntry {
     date: string; // YYYY-MM-DD for grouping
     text: string;
     order: number;
+    parentId?: string; // ID of the log directly above. undefined if at top or has its own time.
+    createdAt?: number; // Timestamp for stable tie-breaking
 }
 
 export interface Shortcut {

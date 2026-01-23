@@ -1,8 +1,10 @@
-Refactor: 時刻表示を「ダミー表示」と「透明な入力欄」に分離
+Feat: Phase 2 Sorting & Data Integrity
 
-Androidブラウザにおける `input[type=time]` のテキスト位置問題を根本的に解決するため、時刻表示のアーキテクチャを再設計しました。
+Implemented robust sorting and data precision improvements:
 
-- **表示の分離:** 時刻の文字列（`12:34` や `--:--`）を、スタイリングが容易な通常の `div` 要素で表示するように変更しました。
-- **機能の維持:** 実際に時刻ピッカーを起動する `input[type=time]` は、この`div`の上に透明なレイヤーとして重ねることで、ユーザーの操作感を損なうことなく機能を維持しています。
-
-この「見た目と機能の分離」により、ブラウザ固有のレンダリングの癖に左右されることなく、常に期待通りの表示とアライメントが保証されます。
+- **Sorting**: Implemented "Anchor & Dependent" sorting logic. Logs without time now explicitly link to the log above them (`parentId`) and move with it during sorts.
+- **Data Precision**: Added `createdAt` timestamp to `LogEntry` to ensure stable sorting for logs added within the same minute.
+- **Migration**: Added auto-migration to upgrade existing logs with `createdAt` and `parentId` on load.
+- **UI/UX**: 
+  - Forced time display and input to use `HH:mm` format to simplify editing.
+  - Retained full precision in background for sorting stability.
