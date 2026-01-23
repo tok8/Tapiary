@@ -25,3 +25,7 @@ export interface ExportSettings {
     quoteText: boolean;
     newlineHandling: 'keep' | 'space' | 'escape';
 }
+
+export interface AppearanceSettings {
+    showScrollButtons: boolean;
+}
