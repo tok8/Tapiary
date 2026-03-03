@@ -38,53 +38,23 @@ const LogItem = ({
   updateLog,
   deleteLog,
   addLog,
-  isExpanded,
-  setExpanded
 }: {
   log: LogEntry,
   selectedDate: string,
   updateLog: (id: string, u: Partial<LogEntry>) => void,
   deleteLog: (id: string) => void,
   addLog: (text?: string, date?: string, time?: string, after?: string, noTime?: boolean) => void,
-  isExpanded: boolean,
-  setExpanded: (id: string) => void
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [showReadMore, setShowReadMore] = useState(false)
 
-  // Check for overflow on mount and when text changes/wraps
+  // Auto-resize textarea to always show full content
   useLayoutEffect(() => {
-    const checkOverflow = () => {
-      const el = textareaRef.current
-      if (el) {
-        // We need to reset height to auto to get correct scrollHeight if it was previously set
-        if (!isExpanded) {
-          // If collapsed, we want to know if it WOULD overflow if we enforced max-height
-          // But CSS enforces max-height.
-          // So if scrollHeight > clientHeight, it's overflowing.
-          // NOTE: clientHeight includes padding. scrollHeight includes padding + content.
-          // If they are equal, no overflow. 
-          // We might need a small tolerance (1px).
-          setShowReadMore(el.scrollHeight > el.clientHeight + 1)
-        } else {
-          // If expanded, button is hidden by logic usually.
-          setShowReadMore(false)
-        }
-      }
+    const el = textareaRef.current
+    if (el) {
+      el.style.height = 'auto'
+      el.style.height = el.scrollHeight + 'px'
     }
-
-    checkOverflow()
-    window.addEventListener('resize', checkOverflow)
-    return () => window.removeEventListener('resize', checkOverflow)
-  }, [log.text, isExpanded])
-
-  // Auto-resize height when expanded
-  useLayoutEffect(() => {
-    if (isExpanded && textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px'
-    }
-  }, [log.text, isExpanded])
+  }, [log.text])
 
   return (
     <motion.div
@@ -101,7 +71,12 @@ const LogItem = ({
           <input
             type="time"
             value={log.time?.slice(0, 5)}
-            onChange={(e) => updateLog(log.id, { time: e.target.value })}
+            onChange={(e) => {
+              // Browser time picker returns HH:mm; append :00 for seconds
+              const val = e.target.value;
+              const timeWithSec = val && val.length === 5 ? val + ':00' : val;
+              updateLog(log.id, { time: timeWithSec });
+            }}
             onClick={(e) => {
               const input = e.target as HTMLInputElement;
               if (input.showPicker) {
@@ -117,32 +92,12 @@ const LogItem = ({
             value={log.text}
             onChange={(e) => {
               updateLog(log.id, { text: e.target.value })
-              // Resize immediately if expanded
-              if (isExpanded) {
-                e.target.style.height = 'auto'
-                e.target.style.height = e.target.scrollHeight + 'px'
-              }
+              e.target.style.height = 'auto'
+              e.target.style.height = e.target.scrollHeight + 'px'
             }}
             placeholder="メモを入力..."
             rows={1}
-            className={!isExpanded ? 'truncated-textarea' : ''}
-            onFocus={() => {
-              if (showReadMore && !isExpanded) {
-                setExpanded(log.id)
-              }
-            }}
           />
-          {!isExpanded && showReadMore && (
-            <button
-              className="read-more-btn"
-              onClick={(e) => {
-                e.stopPropagation()
-                setExpanded(log.id)
-              }}
-            >
-              続きを読む...
-            </button>
-          )}
         </div>
         <button className="delete-btn" onClick={() => deleteLog(log.id)}>×</button>
       </div>
@@ -155,6 +110,92 @@ const LogItem = ({
         </button>
       </div>
     </motion.div>
+  )
+}
+
+// CalendarPicker Component
+const CalendarPicker = ({
+  selectedDate,
+  onSelectDate,
+  datesWithData,
+  onClose,
+}: {
+  selectedDate: string,
+  onSelectDate: (date: string) => void,
+  datesWithData: Set<string>,
+  onClose: () => void,
+}) => {
+  const [viewYear, setViewYear] = useState(() => parseInt(selectedDate.slice(0, 4)))
+  const [viewMonth, setViewMonth] = useState(() => parseInt(selectedDate.slice(5, 7)) - 1) // 0-indexed
+
+  const todayStr = getTodayStr()
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土']
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay() // 0=Sun
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
+    else setViewMonth(m => m - 1)
+  }
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
+    else setViewMonth(m => m + 1)
+  }
+
+  const formatDateStr = (day: number) =>
+    `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+  const handleSelect = (day: number) => {
+    onSelectDate(formatDateStr(day))
+    onClose()
+  }
+
+  // Build cells: leading blanks + day numbers
+  const cells: (number | null)[] = []
+  for (let i = 0; i < firstDayOfWeek; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  const monthLabel = `${viewYear}年${viewMonth + 1}月`
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal calendar-modal" onClick={e => e.stopPropagation()}>
+        <div className="calendar-header">
+          <button className="nav-btn" onClick={prevMonth}>◀</button>
+          <span className="calendar-month-label">{monthLabel}</span>
+          <button className="nav-btn" onClick={nextMonth}>▶</button>
+        </div>
+        <div className="calendar-grid">
+          {weekdays.map(w => (
+            <div key={w} className="calendar-weekday">{w}</div>
+          ))}
+          {cells.map((day, i) => {
+            if (day === null) return <div key={`blank-${i}`} className="calendar-cell empty" />
+            const dateStr = formatDateStr(day)
+            const isToday = dateStr === todayStr
+            const isSelected = dateStr === selectedDate
+            const hasData = datesWithData.has(dateStr)
+            return (
+              <button
+                key={dateStr}
+                className={[
+                  'calendar-cell',
+                  isToday ? 'today' : '',
+                  isSelected ? 'selected' : '',
+                  hasData ? 'has-data' : '',
+                ].filter(Boolean).join(' ')}
+                onClick={() => handleSelect(day)}
+              >
+                <span className="calendar-day-num">{day}</span>
+                {hasData && <span className="calendar-dot" />}
+              </button>
+            )
+          })}
+        </div>
+        <button className="close-modal-btn" onClick={onClose}>閉じる</button>
+      </div>
+    </div>
   )
 }
 
@@ -193,12 +234,12 @@ function App() {
   const [isAppSettingsOpen, setIsAppSettingsOpen] = useState(false)
   const [isShortcutSettingsOpen, setIsShortcutSettingsOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState(() => getTodayStr())
-  const datePickerRef = useRef<HTMLInputElement>(null)
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [isNewLogModalOpen, setIsNewLogModalOpen] = useState(false)
   const [newLogTime, setNewLogTime] = useState('')
   const [newLogText, setNewLogText] = useState('')
   const newLogTextRef = useRef<HTMLTextAreaElement>(null)
-  const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
+
 
   useEffect(() => {
     localStorage.setItem('tapiary-data', JSON.stringify(logs))
@@ -313,11 +354,17 @@ function App() {
     return sortedLogs.filter(log => log.date === selectedDate)
   }, [sortedLogs, selectedDate])
 
+  const datesWithData = useMemo(() => {
+    const dates = new Set<string>()
+    logs.forEach(l => { if (l.date) dates.add(l.date) })
+    return dates
+  }, [logs])
+
   const addLog = (text = '', dateStr?: string, timeStr?: string, afterId?: string, noTime = false, insertBeforeFirst = false) => {
     const now = new Date()
     const targetDate = dateStr || selectedDate
     const isToday = targetDate === getTodayStr()
-    const timeVal = noTime ? '' : (timeStr || (isToday ? now.toTimeString().slice(0, 5) : '')); // HH:mm
+    const timeVal = noTime ? '' : (timeStr || (isToday ? now.toTimeString().slice(0, 8) : '')); // HH:mm:ss
 
     let parentId: string | undefined = undefined;
 
@@ -409,22 +456,16 @@ function App() {
       // Time Part
       if (exportSettings.includeLogDate) {
         // Full YYYY-MM-DD HH:mm(:ss)
-        let t = log.date + ' ' + (log.time || '--:--')
-        if (exportSettings.includeSeconds && log.time) {
-          if (!exportSettings.includeSeconds) {
-            t = log.date + ' ' + (log.time?.slice(0, 5) || '--:--')
-          }
-        } else if (!exportSettings.includeSeconds) {
-          t = log.date + ' ' + (log.time?.slice(0, 5) || '--:--')
-        }
-        parts.push(t)
+        const timeDisplay = log.time
+          ? (exportSettings.includeSeconds ? log.time.slice(0, 8) : log.time.slice(0, 5))
+          : '--:--';
+        parts.push(log.date + ' ' + timeDisplay)
       } else {
         // Just Time
-        let t = log.time || '--:--'
-        if (!exportSettings.includeSeconds) {
-          t = t.slice(0, 5)
-        }
-        parts.push(t)
+        const timeDisplay = log.time
+          ? (exportSettings.includeSeconds ? log.time.slice(0, 8) : log.time.slice(0, 5))
+          : '--:--';
+        parts.push(timeDisplay)
       }
 
       // Text Part
@@ -467,7 +508,7 @@ function App() {
 
   const openNewLogModal = () => {
     const now = new Date();
-    setNewLogTime(now.toTimeString().slice(0, 5));
+    setNewLogTime(now.toTimeString().slice(0, 8)); // HH:mm:ss
     setNewLogText('');
     setIsNewLogModalOpen(true);
     setTimeout(() => newLogTextRef.current?.focus(), 100);
@@ -511,17 +552,10 @@ function App() {
       <main className="timeline">
         <div className="date-header">
           <button className="nav-btn" onClick={() => navigateDate(-1)}>◀</button>
-          <div className="date-display" onClick={() => datePickerRef.current?.showPicker()}>
+          <div className="date-display" onClick={() => setIsCalendarOpen(true)}>
             {formatDisplayDate(selectedDate)}
           </div>
           <button className="nav-btn" onClick={() => navigateDate(1)}>▶</button>
-          <input
-            type="date"
-            ref={datePickerRef}
-            className="hidden-date-picker"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
         </div>
 
         <AnimatePresence mode="popLayout">
@@ -553,8 +587,6 @@ function App() {
                     updateLog={updateLog}
                     deleteLog={deleteLog}
                     addLog={addLog}
-                    isExpanded={expandedLogs.has(log.id)}
-                    setExpanded={(id) => setExpandedLogs(prev => new Set(prev).add(id))}
                   />
                 ))}
               </>
@@ -594,12 +626,14 @@ function App() {
               <input
                 className="new-log-time-input"
                 type="text"
-                value={newLogTime}
+                value={newLogTime.slice(0, 5)}
                 onChange={(e) => {
                   let v = e.target.value.replace(/[^0-9:]/g, '');
-                  if (v.length === 2 && !v.includes(':') && newLogTime.length === 1) v += ':';
+                  if (v.length === 2 && !v.includes(':') && newLogTime.slice(0, 5).length === 1) v += ':';
                   if (v.length > 5) v = v.slice(0, 5);
-                  setNewLogTime(v);
+                  // Preserve existing seconds or default to :00
+                  const seconds = newLogTime.length >= 8 ? newLogTime.slice(5, 8) : ':00';
+                  setNewLogTime(v.length === 5 ? v + seconds : v);
                 }}
                 placeholder="--:--"
                 maxLength={5}
@@ -735,6 +769,15 @@ function App() {
             <button className="close-modal-btn" onClick={() => setIsAppSettingsOpen(false)}>閉じる</button>
           </div>
         </div>
+      )}
+
+      {isCalendarOpen && (
+        <CalendarPicker
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          datesWithData={datesWithData}
+          onClose={() => setIsCalendarOpen(false)}
+        />
       )}
     </div>
   )
